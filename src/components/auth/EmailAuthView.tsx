@@ -2,9 +2,11 @@ import { useLoader } from '@/contexts/LoaderContext'
 import { useEmailAuth } from '@/hooks/useEmailAuth'
 import { colors } from '@/theme/colors'
 import { Ionicons } from '@expo/vector-icons'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { LinearGradient } from 'expo-linear-gradient'
 import { AnimatePresence, MotiView } from 'moti'
 import { useEffect, useRef, useState } from 'react'
+import { Controller, useForm } from 'react-hook-form'
 import {
   KeyboardAvoidingView,
   Platform,
@@ -15,6 +17,12 @@ import {
   TextInput,
   View,
 } from 'react-native'
+import { z } from 'zod'
+
+const emailSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+})
+type EmailFormData = z.infer<typeof emailSchema>
 
 export default function EmailAuthView({
   onCancel,
@@ -23,12 +31,21 @@ export default function EmailAuthView({
   onCancel: () => void
   onSuccess: (walletAddress: string) => void
 }) {
-  const [email, setEmail] = useState('')
   const [answer, setAnswer] = useState('')
   const [didSendAnswer, setDidSendAnswer] = useState(false)
   const [isEmailFocused, setIsEmailFocused] = useState(false)
   const [isOtpFocused, setIsOtpFocused] = useState(false)
   const [otpError, setOtpError] = useState<string | null>(null)
+
+  const {
+    control,
+    handleSubmit,
+    getValues,
+    formState: { errors, isValid },
+  } = useForm<EmailFormData>({
+    resolver: zodResolver(emailSchema),
+    mode: 'onChange',
+  })
 
   const [panelOpen, setPanelOpen] = useState(true)
   const exitedAfterCloseRef = useRef(false)
@@ -40,7 +57,6 @@ export default function EmailAuthView({
 
   useEffect(() => {
     return () => {
-      setEmail('')
       setAnswer('')
       setDidSendAnswer(false)
     }
@@ -85,7 +101,6 @@ export default function EmailAuthView({
     setPanelOpen(false)
   }
 
-  const canSubmitEmail = /\S+@\S+\.\S+/.test(email)
   const canVerify = answer.length === 6
   const otpSlots = Array.from({ length: 6 }, (_, i) => answer[i] || '')
 
@@ -153,38 +168,63 @@ export default function EmailAuthView({
                         {"We'll send a 6-digit code to verify your identity."}
                       </Text>
 
-                      <Pressable
-                        onPress={() => emailRef.current?.focus()}
-                        style={[
-                          styles.inputWrap,
-                          isEmailFocused && styles.inputFocused,
-                        ]}
-                      >
-                        <Ionicons
-                          name="at"
-                          size={16}
-                          color={
-                            isEmailFocused
-                              ? colors.purple
-                              : colors.textSecondary
-                          }
-                          style={{ marginLeft: 4 }}
-                        />
-                        <TextInput
-                          ref={emailRef}
-                          autoFocus
-                          autoCapitalize="none"
-                          autoComplete="off"
-                          keyboardType="email-address"
-                          value={email}
-                          onChangeText={setEmail}
-                          onFocus={() => setIsEmailFocused(true)}
-                          onBlur={() => setIsEmailFocused(false)}
-                          placeholder="you@example.com"
-                          placeholderTextColor={colors.textSecondary}
-                          style={styles.input}
-                        />
-                      </Pressable>
+                      <Controller
+                        control={control}
+                        name="email"
+                        render={({ field: { onChange, onBlur, value } }) => (
+                          <Pressable
+                            onPress={() => emailRef.current?.focus()}
+                            style={[
+                              styles.inputWrap,
+                              isEmailFocused && styles.inputFocused,
+                              errors.email && styles.inputError,
+                              { marginBottom: errors.email ? 8 : 20 },
+                            ]}
+                          >
+                            <Ionicons
+                              name="at"
+                              size={16}
+                              color={
+                                isEmailFocused
+                                  ? colors.purple
+                                  : colors.textSecondary
+                              }
+                              style={{ marginLeft: 4 }}
+                            />
+                            <TextInput
+                              ref={emailRef}
+                              autoFocus
+                              autoCapitalize="none"
+                              autoComplete="off"
+                              keyboardType="email-address"
+                              value={value}
+                              onChangeText={onChange}
+                              onFocus={() => setIsEmailFocused(true)}
+                              onBlur={() => {
+                                setIsEmailFocused(false)
+                                onBlur()
+                              }}
+                              placeholder="you@example.com"
+                              placeholderTextColor={colors.textSecondary}
+                              style={styles.input}
+                            />
+                          </Pressable>
+                        )}
+                      />
+                      {errors.email && (
+                        <View
+                          style={[styles.errorBanner, { marginBottom: 12 }]}
+                        >
+                          <Ionicons
+                            name="alert-circle-outline"
+                            size={14}
+                            color={colors.error}
+                          />
+                          <Text style={styles.errorBannerText}>
+                            {errors.email.message}
+                          </Text>
+                        </View>
+                      )}
 
                       <View style={styles.btnRow}>
                         <Pressable
@@ -197,7 +237,9 @@ export default function EmailAuthView({
                           <Text style={styles.btnGhostText}>Cancel</Text>
                         </Pressable>
                         <Pressable
-                          onPress={() => canSubmitEmail && initiateAuth(email)}
+                          onPress={handleSubmit(({ email }) =>
+                            initiateAuth(email)
+                          )}
                           style={({ pressed }) => [
                             styles.btnPrimaryWrap,
                             pressed && styles.pressed,
@@ -205,7 +247,7 @@ export default function EmailAuthView({
                         >
                           <LinearGradient
                             colors={
-                              canSubmitEmail
+                              isValid
                                 ? [colors.purple, '#6d28d9']
                                 : [colors.surfaceAlt, colors.surfaceAlt]
                             }
@@ -216,7 +258,7 @@ export default function EmailAuthView({
                             <Text
                               style={[
                                 styles.btnPrimaryText,
-                                !canSubmitEmail && {
+                                !isValid && {
                                   color: colors.textSecondary,
                                 },
                               ]}
@@ -226,9 +268,7 @@ export default function EmailAuthView({
                             <Ionicons
                               name="arrow-forward"
                               size={15}
-                              color={
-                                canSubmitEmail ? '#fff' : colors.textSecondary
-                              }
+                              color={isValid ? '#fff' : colors.textSecondary}
                             />
                           </LinearGradient>
                         </Pressable>
@@ -259,7 +299,7 @@ export default function EmailAuthView({
                         <Text
                           style={{ color: colors.purple, fontWeight: '700' }}
                         >
-                          {email}
+                          {getValues('email')}
                         </Text>
                       </Text>
 
@@ -516,6 +556,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 0 },
+  },
+  inputError: {
+    borderColor: 'rgba(255,93,115,0.5)',
   },
   input: {
     flex: 1,
