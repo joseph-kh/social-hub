@@ -1,6 +1,5 @@
 import EmailAuthView from '@/components/auth/EmailAuthView'
 import { Screen } from '@/components/layout/Screen'
-import { isDemoMode } from '@/config/env'
 import { useSequenceAuth } from '@/hooks/useSequenceAuth'
 import { isSequenceConfigured } from '@/services/sequence/sequenceClient'
 import { getAvaxBalance } from '@/services/sequence/sequenceWallet'
@@ -272,7 +271,7 @@ export default function SignInScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {!isDemoMode && (
+          {
             <TouchableOpacity
               style={[styles.button, styles.googleButton]}
               onPress={signInGoogle}
@@ -285,9 +284,9 @@ export default function SignInScreen() {
               />
               <Text style={styles.buttonLabel}>Continue with Google</Text>
             </TouchableOpacity>
-          )}
+          }
 
-          {isDemoMode && (
+          {
             <TouchableOpacity
               style={[styles.button, styles.guestButton]}
               onPress={() => signInEmail('guest@demo.tapnation.io')}
@@ -300,7 +299,7 @@ export default function SignInScreen() {
               />
               <Text style={styles.guestLabel}>Continue as Guest (Demo)</Text>
             </TouchableOpacity>
-          )}
+          }
         </MotiView>
 
         <MotiView
