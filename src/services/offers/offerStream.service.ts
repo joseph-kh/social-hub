@@ -1,11 +1,17 @@
 import type { StreamOfferHandlers } from '@/types/offer'
 import { delay } from '@/utils/delay'
 import { logger } from '@/utils/logger'
+import OpenAI from 'openai'
 import { streamMockOffers } from './offerMock.service'
 import { parseOffers } from './offerParser'
 import { SYSTEM_PROMPT, USER_PROMPT } from './offerPrompt'
 
 const apiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY ?? ''
+
+const client = new OpenAI({
+  apiKey,
+  dangerouslyAllowBrowser: true,
+})
 
 export const streamOffers = async (
   handlers: StreamOfferHandlers,
@@ -29,28 +35,18 @@ async function streamLLMOffers(
 ): Promise<void> {
   handlers.onStart?.()
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: USER_PROMPT },
-      ],
-      temperature: 0.9,
-    }),
+  logger.info('Starting LLM offer stream with ID:', streamId)
+
+  const completion = await client.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: SYSTEM_PROMPT },
+      { role: 'user', content: USER_PROMPT },
+    ],
+    temperature: 0.9,
   })
 
-  if (!response.ok) {
-    throw new Error(`LLM API error: ${response.status}`)
-  }
-
-  const data = await response.json()
-  const content = data.choices?.[0]?.message?.content ?? '[]'
+  const content = completion.choices[0].message.content ?? '[]'
   const offers = parseOffers(content)
 
   for (const offer of offers) {
